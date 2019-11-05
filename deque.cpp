@@ -1,12 +1,15 @@
+/**
+ * Реализовать дек с динамическим зацикленным буфером.
+ * Обрабатывать команды push * и pop *.
+ */
 #include <assert.h>
+
 #include <iostream>
 #include <vector>
 
 class Deque {
 public:
     Deque();
-    // Проверка очереди на пустоту
-    bool empty() const;
     // Добавление элемента
     void push_front(int value);
     void push_back(int value);
@@ -14,121 +17,115 @@ public:
     int pop_front();
     int pop_back();
 
-    std::vector<int> data;
-    int head, tail;
-    int size();
-
 private:
+    // Получение соседнего индекса массива(с учетом цикличности)
     int dec_position(int position);
     int inc_position(int position);
+    // Расширение массива
     void expand();
+
+private:
+    static const int ORIGINAL_DATA_SIZE = 8;
+    // Массив данных
+    std::vector<int> data;
+    // Позиции для добавления новых элементов
+    int head, tail;
 };
 
 Deque::Deque() {
-    data.resize(7);
+    data.resize(ORIGINAL_DATA_SIZE);
     head = data.size() - 1;
     tail = 0;
 };
 
 void Deque::push_front(int value) {
+    // Если хвост и голова дека встретились => расширяем массив данных
     if (head == tail) expand();
-//    std::cout << "push_front" << " ";
-//    std::cout << value << " ";
     data[head] = value;
     head = dec_position(head);
-//    for (int val: data){
-//        std::cout << val;
-//    }
-//    std::cout << std::endl;
 }
 
 void Deque::push_back(int value) {
+    // Если хвост и голова дека встретились => расширяем массив данных
     if (head == tail) expand();
-//    std::cout << "push_back" << " ";
-//    std::cout << value << " ";
     data[tail] = value;
     tail = inc_position(tail);
-//    for (int val: data){
-//        std::cout << val;
-//    }
-//    std::cout << std::endl;
 }
 
 int Deque::pop_front() {
+    // Нашли предыдущий индекс головы
     int index = inc_position(head);
-    int value = -1;
-    if (index != tail) {
-        value = data[index];
-        data[index] = 0;
-        head = index;
+    // Если наступили на хвост, значит дек пустой, возвращаем -1
+    if (index == tail) {
+        return -1;
     }
-//    std::cout << "pop_front" << " ";
-//    std::cout << value << " ";
-//    for (int val: data){
-//        std::cout << val;
-//    }
-//    std::cout << std::endl;
+    // Получаем значение
+    int value = data[index];
+    // На всякий случай зануляем (возможно лишнее)
+    data[index] = 0;
+    // Переставляем индекс головы
+    head = index;
     return value;
 }
 
 int Deque::pop_back() {
+    // Нашли предыдущий индекс хвоста
     int index = dec_position(tail);
-    int value = -1;
-    if (index != head) {
-        value = data[index];
-        data[index] = 0;
-        tail = index;
+    // Если наступили на голову, значит дек пустой, возвращаем -1
+    if (index == head) {
+        return -1;
     }
-//    std::cout << "pop_back" << " ";
-//    std::cout << value << " ";
-//    for (int val: data){
-//        std::cout << val;
-//    }
-//    std::cout << std::endl;
+    // Получаем значение
+    int value = data[index];
+    // На всякий случай зануляем (возможно лишнее)
+    data[index] = 0;
+    // Переставляем индекс хвоста
+    tail = index;
     return value;
 }
 
-int Deque::size() {
-    int size = tail - head - 1;
-    if (size < 0) {
-        size += data.size();
-    }
-    return size;
-}
-
 int Deque::dec_position(int position) {
-    int prev_pos = position - 1;
-    if (prev_pos < 0) {
-        prev_pos = data.size() - 1;
+    if (position == 0) {
+        return data.size() - 1;
     }
-    return prev_pos;
+    return position - 1;
 }
 
 int Deque::inc_position(int position) {
-    int next_pos = position + 1;
-    if (next_pos > data.size() - 1) {
-        next_pos = 0;
+    if (position == (data.size() - 1)) {
+        return 0;
     }
-    return next_pos;
+    return position + 1;
 }
 
 void Deque::expand() {
+    // Индекс где "начинаются" данные
     int begin_index = inc_position(head);
+    // Индекс где "заканчиваются" данные
     int end_index = dec_position(tail);
+    // Данные не могут начинаться и заканчиваться в одном месте
+    assert(begin_index != end_index);
+    // Если данные хранятся без зацикливания
     if (begin_index < end_index) {
+        // Единственный сценарий когда данные хранятся в массиве с 0 и до конца
         assert(begin_index == 0);
+        // В этом случае просто удваиваем массив и передвигаем индексы головы и хвоста
         int size = data.size();
         data.resize(size * 2);
         tail = inc_position(end_index);
         head = dec_position(begin_index);
     } else {
-        assert(begin_index != end_index);
+        // Удваиваем массив
         int size = data.size();
         int new_size = size * 2;
         data.resize(new_size);
+        // Сдвигаем все элементы правой части массива (от головы до конца массива) к новому концу массива
         for (int i = begin_index; i < size; i++) {
             data[i + new_size - size] = data[i];
+            // На всякий случай зануляем (возможно лишнее)
+            data[i] = 0;
         }
+        // Передвигаем индекс головы (хвост остался на месте)
         head = dec_position(begin_index + new_size - size);
     }
 }
@@ -136,10 +133,10 @@ void Deque::expand() {
 int main() {
     int commands_count = 0;
     std::cin >> commands_count;
+    int command = 0;
+    int value = 0;
     Deque deque;
     for (int i = 0; i < commands_count; ++i) {
-        int command = 0;
-        int value = 0;
         std::cin >> command >> value;
         switch (command) {
             case 1: {
@@ -164,12 +161,12 @@ int main() {
                 }
                 break;
             }
+            default:
+                assert(false);
         }
     }
-//    for (int val: deque.data){
-//        std::cout << val;
-//    }
     std::cout << std::endl << "YES";
     return 0;
 }
+
 
