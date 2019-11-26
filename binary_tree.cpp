@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cassert>
 #include <queue>
+#include <vector>
 
 // Узел бинарного дерева
 struct TreeNode {
@@ -20,33 +21,24 @@ struct TreeNode {
 class Tree {
 public:
     ~Tree();
-    // Вывод значений дерева (обход в ширину)
-    void Print() const;
+    // Обход в ширину
+    void LevelOrder(void (*pFunc)(TreeNode* )) const;
     void Add(int value);
 
 private:
     TreeNode* root = nullptr;
-
-private:
-    void delete_subtree(TreeNode* node);
 };
 
 Tree::~Tree() {
-    delete_subtree(root);
+    // Проходим дерево в ширину и удаляем каждый узел
+    LevelOrder([](TreeNode* node) {
+        delete node;
+    });
 }
 
-void Tree::delete_subtree(TreeNode* node) {
-    // Если нечего удалять, выходим
-    if (!node) return;
-    // Если есть - удаляем правый и левый дочерние узлы
-    delete_subtree(node->left);
-    delete_subtree(node->right);
-    // Затем удаляем сам узел
-    delete node;
-}
-
-void Tree::Print() const {
-    // Если нечего показывать, выходим
+// Получить массив указателей на узлы в порядке level-order
+void Tree::LevelOrder(void (*pFunc)(TreeNode* )) const {
+    // Если нечего брать, выходим
     if (!root) return;
     // Для обхода в ширину создаем очередь "непройденных" узлов
     std::queue<TreeNode*> nodesQueue;
@@ -54,9 +46,9 @@ void Tree::Print() const {
     nodesQueue.push(root);
     // Пока очередь не пустая
     while (!nodesQueue.empty()) {
-        // Берем первый узел и отображаем его значение
+        // Берем первый узел и сохраняем его
         auto node = nodesQueue.front();
-        std::cout << node->value << " ";
+        (*pFunc)(node);
         // Вынимаем первый узел
         nodesQueue.pop();
         // Добавляем дочерние узлы в очередь
@@ -73,7 +65,7 @@ void Tree::Add(int value) {
     }
     // Если корень непустой
     auto node = root;
-    while (1) {
+    while (true) {
         // Проходим по (непустым) узлам
         assert(node);
         // Выбираем правый или левый дочерний узлы (в зависомости от значения и текущего узла)
@@ -109,6 +101,9 @@ int main() {
         std::cin >> value;
         tree.Add(value);
     }
-    tree.Print();
+    // Проходим дерево в ширину и выводим каждый узел
+    tree.LevelOrder([](TreeNode* node) {
+        std::cout << node->value << " ";
+    });
     return 0;
 }

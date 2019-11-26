@@ -16,25 +16,32 @@ struct TreeNode {
     TreeNode* left = nullptr;
     TreeNode* right = nullptr;
     TreeNode* parent;
+    int size = 0;
 };
 
 // Сплей дерево с расчетом порядковых статистик
 class Tree {
 public:
+    Tree() {};
     ~Tree();
+    Tree(const Tree &other);
+    Tree& operator=(const Tree &other) ;
+    Tree(Tree&& other) noexcept;
+    Tree& operator=(Tree&& other) noexcept;
+
     // Добавить элемент
     void Add(int value);
     // Убрать элемент
     void Delete(int value);
     // Посчитать k-ю порядковую статистику
-    int OrderStat(int k);
+    int OrderStat(int k) const;
 
 private:
     TreeNode* root = nullptr;
 
 private:
     // Поиск элемента по дереву (возвращает узел с заданным числом или его родителя)
-    TreeNode* find(int value);
+    TreeNode* find(int value, bool increment);
     // Операция сплей (поднять узел наверх)
     void splay(TreeNode* node);
     // Операции для поднятия узла наверх
@@ -50,9 +57,10 @@ private:
     // Установка нового корня
     void setRoot(TreeNode* node);
     // Удаление узла и его потомков
-    void deleteSubtree(TreeNode* node);
+    static void deleteSubtree(TreeNode* node);
+    static TreeNode* copySubtree(TreeNode* other, TreeNode* parent);
     // Максимальный элемент дерева (начиная с данного узла)
-    TreeNode* max(TreeNode* node);
+    static TreeNode* max(TreeNode* node);
     // Склейка с деревом c бОльшими значениями
     void mergeRight(TreeNode* mergedRoot);
 };
@@ -61,17 +69,46 @@ Tree::~Tree() {
     deleteSubtree(root);
 }
 
+Tree::Tree(const Tree &other) {
+    root = copySubtree(other.root, nullptr);
+}
+
+Tree& Tree::operator=(const Tree &other) {
+    if (this == &other)
+        return *this;
+    auto tmp_root = copySubtree(other.root, nullptr);
+    deleteSubtree(root);
+    root = tmp_root;
+    return *this;
+}
+
+Tree::Tree(Tree&& other) noexcept {
+    root = other.root;
+    other.root = nullptr;
+}
+
+Tree& Tree::operator=(Tree&& other) noexcept {
+    if (this == &other)
+        return *this;
+    deleteSubtree(root);
+    root = other.root;
+    other.root = nullptr;
+    return *this;
+}
+
 void Tree::setRoot(TreeNode* node) {
     root = node;
     node->parent = nullptr;
 }
 
-TreeNode* Tree::find(int value) {
+TreeNode* Tree::find(int value, bool increment) {
     if (!root) return nullptr;
     // Начинаем с корня
     auto node = root;
-    while (1) {
+    while (true) {
         assert(node);
+        // Обновляем размер поддеревьев
+        if (increment) ++node->size;
         // Если значение узла равно заданному, возвращаем узел
         if (node->value == value) {
             return node;
@@ -101,40 +138,38 @@ void Tree::deleteSubtree(TreeNode* node) {
     delete node;
 }
 
-// Поиск k-й статистики методом обхода в ширину in-order k наименьших элементов
-int Tree::OrderStat(int k) {
+TreeNode* Tree::copySubtree(TreeNode* other, TreeNode* parent) {
+    if (!other) return nullptr;
+    TreeNode* node = new TreeNode(other->value, parent);
+    node->left = copySubtree(other->left, node);
+    node->right = copySubtree(other->right, node);
+    return node;
+}
+
+// Поиск k-й статистики
+int Tree::OrderStat(int k) const {
     assert(root);
-    // Стэк для непройденных узлов
-    std::stack<TreeNode*> nodes_stack;
     auto node = root;
-    // Пока есть куда идти
-    while (!nodes_stack.empty() || node) {
-        if (node) {
-            // Если есть узел - добавляем в стек (рассматривать его еще рано)
-            nodes_stack.push(node);
-            // Выбираем левый подузел
+    while (node) {
+        // Смотри размер левого поддерева
+        auto nodes_k = node->left ? node->left->size + 1 : 0;
+        if (nodes_k == k) {
+            // Если равен, то искомая статистика в текущем узле
+            return node->value;
+        } else if (nodes_k > k) {
+            // Если меньше, спускаемся в левый узел
             node = node->left;
         } else {
-            // Если узла нет, то достаем последний узел из стэка и рассматриваем его
-            node = nodes_stack.top();
-            nodes_stack.pop();
-            // k - сколько осталось пройти узлов до нужного
-            if (k == 0) {
-                // Если нашли нужный - поднимаем узел в корень и возвращаем его значение
-                int result = node->value;
-                splay(node);
-                return result;
-            }
-            // декрементируем k на каждом пройденном узле
-            k -= 1;
+            // Если меньше, спускаемся в правый узел и корректируем статистику k
             node = node->right;
+            k -= nodes_k + 1;
         }
     }
 }
 
 void Tree::Delete(int value) {
     // Находим нужный узел (считаем что такой элемент есть)
-    TreeNode* node = find(value);
+    TreeNode* node = find(value, false);
     assert(node);
     // Поднимаемм узел в корень
     splay(node);
@@ -150,6 +185,8 @@ void Tree::Delete(int value) {
         setRoot(right);
     }
     delete node;
+    // Обновляем размер поддерева
+    root->size = (root->left ? 1 + root->left->size : 0) + (root->right ? 1 + root->right->size : 0);
 }
 
 void Tree::Add(int value) {
@@ -157,8 +194,8 @@ void Tree::Add(int value) {
         setRoot(new TreeNode(value, nullptr));
         return;
     }
-    // Находим нужный элемент (точнее его родителя)
-    TreeNode* node = find(value);
+    // Находим нужный элемент (точнее его родителя) + инкрементируем все узлы пути
+    TreeNode* node = find(value, true);
     assert(node->value != value);
     // Если значение меньше значения узла, создаем левый подузел с заданным числом
     if (node->value < value) {
@@ -185,6 +222,9 @@ void Tree::zig(TreeNode* node) {
     // Делаем правый или левый поворот относительно родителя
     if (node == p_node->left) rotateRight(p_node);
     if (node == p_node->right) rotateLeft(p_node);
+    // Обновляем размер поддеревьев
+    node->size = p_node->size;
+    p_node->size = (p_node->left ? 1 + p_node->left->size : 0) + (p_node->right ? 1 + p_node->right->size : 0);
 }
 
 void Tree::zigzig(TreeNode* node) {
@@ -205,7 +245,7 @@ void Tree::zigzag(TreeNode* node) {
 
 void Tree::splay(TreeNode* node) {
     // Пока не подняли
-    while (1) {
+    while (true) {
         assert(node);
         // Если узел - корень, все готово
         if (node == root) {
